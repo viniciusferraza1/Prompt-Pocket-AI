@@ -5,6 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PromptPocket AI</title>
     
+    <!-- Favicon SVG -->
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%234338CA'/%3E%3Cpath d='M30 70 V 30 H 55 Q 70 30 70 45 T 55 60 H 40' fill='none' stroke='%23FFFFFF' stroke-width='10' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+
     <!-- Tailwind CSS for styling -->
     <script src="https://cdn.tailwindcss.com"></script>
     
@@ -24,13 +27,41 @@
             color: #F9FAFB; /* Tailwind gray-50 */
         }
         /* Custom scrollbar */
-        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
         ::-webkit-scrollbar-track { background: #1F2937; }
         ::-webkit-scrollbar-thumb { background: #4B5563; border-radius: 10px; }
         ::-webkit-scrollbar-thumb:hover { background: #6B7280; }
-        .prompt-card-content { white-space: pre-wrap; word-break: break-word; }
-        /* Hide main app by default */
-        #main-app { display: none; }
+        
+        #main-app, #login-page { display: none; }
+
+        .prompt-card .expanded-view {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.5s ease-in-out, opacity 0.5s ease-in-out;
+            opacity: 0;
+        }
+        .prompt-card.expanded .expanded-view {
+            max-height: 1000px;
+            opacity: 1;
+        }
+        .prompt-card.expanded .compact-view {
+             border-bottom-left-radius: 0;
+             border-bottom-right-radius: 0;
+        }
+
+        .category-label {
+            writing-mode: vertical-rl;
+            text-orientation: mixed;
+            transform: rotate(180deg);
+        }
+
+        .color-dot {
+            transition: transform 0.2s;
+        }
+        .color-dot.selected {
+            transform: scale(1.25);
+            outline: 2px solid white;
+        }
     </style>
 </head>
 <body class="antialiased">
@@ -62,454 +93,393 @@
                     <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google icon" class="w-6 h-6 mr-3">
                     Entrar com Google
                 </button>
+                
+                <button id="test-mode-btn" class="hidden mt-4 w-full bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-lg transition">
+                    <i class="fas fa-vial mr-2"></i> Modo de Teste
+                </button>
             </div>
         </div>
     </div>
 
     <!-- Main Application -->
-    <div id="main-app" class="min-h-screen flex flex-col items-center p-4 sm:p-6 lg:p-8">
+    <div id="main-app" class="h-screen flex flex-col">
 
         <!-- Header -->
-        <header class="w-full max-w-6xl flex justify-between items-center mb-8">
-            <h1 class="text-3xl font-bold text-white tracking-tight">
-                <span class="text-indigo-400">PromptPocket</span> AI
-            </h1>
-            <div id="user-info" class="flex items-center">
-                 <!-- User info will be injected here -->
+        <header class="w-full flex flex-col p-4 border-b border-gray-700">
+            <div class="w-full flex justify-between items-center">
+                 <h1 class="text-2xl font-bold text-white tracking-tight">
+                    <span class="text-indigo-400">PromptPocket</span> AI
+                </h1>
+                <div class="flex items-center gap-4">
+                    <div class="relative">
+                        <span class="absolute inset-y-0 left-0 flex items-center pl-3"><i class="fas fa-search text-gray-400"></i></span>
+                        <input type="search" id="search-input" placeholder="Buscar prompts..." class="w-full bg-gray-800 text-white rounded-lg py-2 pl-10 pr-4 focus:ring-2 focus:ring-indigo-500">
+                    </div>
+                    <button id="trash-view-btn" class="text-gray-400 hover:text-white transition-colors" title="Ver Lixeira"><i class="fas fa-trash-alt fa-lg"></i></button>
+                    <div id="user-info" class="flex items-center"></div>
+                </div>
             </div>
+            <div id="category-filters" class="flex items-center gap-2 mt-4 flex-wrap"></div>
         </header>
 
-        <main class="w-full max-w-6xl grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-8 flex-grow">
-            
+        <div class="flex flex-1 overflow-hidden">
             <!-- Left Column: Forms & Category Management -->
-            <div class="md:col-span-1 lg:col-span-1">
-                 <!-- Add/Edit Prompt Form -->
-                <div class="bg-gray-800 p-6 rounded-2xl shadow-lg sticky top-8 mb-8">
-                    <h2 id="form-title" class="text-2xl font-semibold mb-4 text-white">Adicionar Prompt</h2>
-                    <form id="prompt-form" class="space-y-4">
-                        <input type="text" id="prompt-title" placeholder="Título do Prompt" class="w-full bg-gray-700 text-white rounded-lg p-3 focus:ring-2 focus:ring-indigo-500" required>
-                        <select id="prompt-category-select" class="w-full bg-gray-700 text-white rounded-lg p-3 focus:ring-2 focus:ring-indigo-500" required>
-                            <option value="">Selecione uma categoria...</option>
-                        </select>
-                        <textarea id="prompt-text" rows="6" placeholder="Seu prompt aqui..." class="w-full bg-gray-700 text-white rounded-lg p-3 focus:ring-2 focus:ring-indigo-500" required></textarea>
-                        <input type="url" id="prompt-link" placeholder="https://... (Link da conversa, opcional)" class="w-full bg-gray-700 text-white rounded-lg p-3 focus:ring-2 focus:ring-indigo-500">
-                        <div id="form-buttons">
-                            <button type="submit" id="save-btn" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-lg transition">Salvar</button>
-                            <div id="edit-buttons" class="hidden">
-                                <button type="submit" id="update-btn" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-lg transition">Atualizar</button>
-                                <button type="button" id="cancel-edit-btn" class="w-full mt-2 bg-gray-600 hover:bg-gray-700 text-white py-2 rounded-lg transition">Cancelar</button>
-                            </div>
-                        </div>
-                    </form>
+            <aside class="w-80 md:w-96 p-4 overflow-y-auto bg-gray-900 border-r border-gray-700">
+                <div class="sticky top-0 bg-gray-900 py-2">
+                    <h2 id="form-title" class="text-xl font-semibold mb-4 text-white">Adicionar Prompt</h2>
                 </div>
-                <!-- Category Management -->
-                <div class="bg-gray-800 p-6 rounded-2xl shadow-lg sticky top-[30rem]">
-                     <h2 class="text-2xl font-semibold mb-4 text-white">Categorias</h2>
-                     <form id="add-category-form" class="flex gap-2 mb-4">
-                        <input type="text" id="category-name" placeholder="Nova categoria" class="w-full bg-gray-700 text-white rounded-lg p-3 focus:ring-2 focus:ring-indigo-500" required>
-                        <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold p-3 rounded-lg transition"><i class="fas fa-plus"></i></button>
-                     </form>
-                     <div id="category-list" class="space-y-2 max-h-40 overflow-y-auto">
-                        <!-- Category list will be injected here -->
-                     </div>
-                </div>
-            </div>
+                <form id="prompt-form" class="space-y-4 mb-8">
+                    <input type="text" id="prompt-title" placeholder="Título do Prompt" class="w-full bg-gray-700 text-white rounded-lg p-3" required>
+                    <select id="prompt-category-select" class="w-full bg-gray-700 text-white rounded-lg p-3" required><option value="">Selecione uma categoria...</option></select>
+                    <textarea id="prompt-text" rows="6" placeholder="Seu prompt aqui..." class="w-full bg-gray-700 text-white rounded-lg p-3" required></textarea>
+                    <input type="url" id="prompt-link" placeholder="https://... (Link opcional)" class="w-full bg-gray-700 text-white rounded-lg p-3">
+                    <div id="form-buttons">
+                        <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-lg transition">Salvar</button>
+                    </div>
+                     <div id="edit-buttons" class="hidden">
+                        <button type="submit" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-lg transition">Atualizar</button>
+                        <button type="button" id="cancel-edit-btn" class="w-full mt-2 bg-gray-600 hover:bg-gray-700 text-white py-2 rounded-lg transition">Cancelar</button>
+                    </div>
+                </form>
+                <hr class="border-gray-700 my-8">
+                 <h2 class="text-xl font-semibold mb-4 text-white">Gerenciar Categorias</h2>
+                 <form id="add-category-form" class="space-y-3 mb-4">
+                    <input type="text" id="category-name" placeholder="Nova categoria" class="w-full bg-gray-700 text-white rounded-lg p-3" required>
+                    <div id="color-palette" class="flex justify-around p-2 bg-gray-700 rounded-lg"></div>
+                    <button type="submit" class="w-full flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold p-3 rounded-lg transition"><i class="fas fa-plus"></i> Adicionar</button>
+                 </form>
+                 <div id="category-list-management" class="space-y-2 max-h-40 overflow-y-auto"></div>
+            </aside>
 
-            <!-- Right Column: Prompt List & Search -->
-            <div class="md:col-span-2 lg:col-span-3">
-                <div class="relative mb-4">
-                    <span class="absolute inset-y-0 left-0 flex items-center pl-3">
-                        <i class="fas fa-search text-gray-400"></i>
-                    </span>
-                    <input type="search" id="search-input" placeholder="Buscar prompts..." class="w-full bg-gray-800 text-white rounded-lg py-3 pl-10 pr-4 focus:ring-2 focus:ring-indigo-500">
-                </div>
-                <div id="prompt-list" class="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
-                    <!-- Prompt cards will be injected here -->
-                </div>
-            </div>
-        </main>
+            <!-- Right Column: Kanban Board -->
+            <main id="kanban-board" class="flex-1 p-6 overflow-auto">
+                <!-- Kanban rows will be injected here -->
+            </main>
+            
+            <!-- Trash View (hidden by default) -->
+            <main id="trash-view" class="flex-1 p-6 overflow-auto hidden">
+                 <div class="flex justify-between items-center mb-4">
+                     <h2 class="text-2xl font-semibold text-white">Lixeira</h2>
+                     <button id="back-to-board-btn" class="text-gray-400 hover:text-white"><i class="fas fa-arrow-left mr-2"></i> Voltar</button>
+                 </div>
+                 <div id="trashed-prompt-list" class="space-y-4"></div>
+            </main>
 
-        <!-- Footer -->
-        <footer class="w-full max-w-6xl text-center text-gray-500 py-6 mt-8">
-            <p>Desenvolvido por Vinicius Ferraz</p>
-        </footer>
-
+        </div>
         <!-- Toast Notification -->
-        <div id="toast" class="fixed bottom-10 right-10 bg-green-500 text-white py-3 px-6 rounded-lg shadow-xl transform translate-y-20 opacity-0 transition-all duration-300"></div>
+        <div id="toast" class="fixed bottom-10 right-10 z-50 bg-green-500 text-white py-3 px-6 rounded-lg shadow-xl transform translate-y-20 opacity-0 transition-all"></div>
     </div>
 
     <!-- Firebase SDKs -->
     <script type="module">
-        // Import necessary functions from Firebase SDKs
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { 
-            getAuth, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, 
-            createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut 
-        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { 
-            getFirestore, collection, addDoc, onSnapshot, query, doc, 
-            deleteDoc, updateDoc, serverTimestamp, getDocs
-        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getAuth, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc, onSnapshot, query, doc, deleteDoc, updateDoc, serverTimestamp, where } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // --- 1. CONFIGURATION & STATE ---
         const firebaseConfig = {
-            apiKey: "AIzaSyDatDCuPP5zVV-NsbV0n6ExLvb3UTWhdlc",
-            authDomain: "prompt-pocket-ai.firebaseapp.com",
-            projectId: "prompt-pocket-ai",
-            storageBucket: "prompt-pocket-ai.appspot.com",
-            messagingSenderId: "565506955883",
-            appId: "1:565506955883:web:53173d1f0b0f20958a74e6"
+            apiKey: "AIzaSyDatDCuPP5zVV-NsbV0n6ExLvb3UTWhdlc", authDomain: "prompt-pocket-ai.firebaseapp.com", projectId: "prompt-pocket-ai",
+            storageBucket: "prompt-pocket-ai.appspot.com", messagingSenderId: "565506955883", appId: "1:565506955883:web:53173d1f0b0f20958a74e6"
         };
         
-        // App state
         let db, auth, userId, userEmail, userPhotoURL;
         let promptsCollectionRef, categoriesCollectionRef;
         let unsubscribePrompts, unsubscribeCategories;
         let allPrompts = [], allCategories = [];
         let currentEditingId = null;
+        let longPressTimer, wasLongPress = false;
+        let selectedCategoryId = 'all';
+        
+        const isTestEnvironment = typeof __initial_auth_token !== 'undefined';
+        const colorPalette = ["#4f46e5", "#db2777", "#16a34a", "#ca8a04", "#2563eb", "#9333ea"]; // Indigo, Pink, Green, Amber, Blue, Purple
+        
+        const ui = document.querySelectorAll('[id]');
+        const elements = Array.from(ui).reduce((acc, el) => ({...acc, [el.id.replace(/-./g, c => c.substring(1).toUpperCase())]: el }), {});
 
-        // UI Elements
-        const loginPage = document.getElementById('login-page');
-        const mainApp = document.getElementById('main-app');
-        const emailLoginForm = document.getElementById('email-login-form');
-        const emailInput = document.getElementById('email-input');
-        const passwordInput = document.getElementById('password-input');
-        const googleLoginBtn = document.getElementById('google-login-btn');
-        const userInfo = document.getElementById('user-info');
-        const promptForm = document.getElementById('prompt-form');
-        const promptTitleInput = document.getElementById('prompt-title');
-        const promptCategorySelect = document.getElementById('prompt-category-select');
-        const promptTextInput = document.getElementById('prompt-text');
-        const promptLinkInput = document.getElementById('prompt-link');
-        const promptList = document.getElementById('prompt-list');
-        const searchInput = document.getElementById('search-input');
-        const formTitle = document.getElementById('form-title');
-        const saveBtn = document.getElementById('save-btn');
-        const editButtons = document.getElementById('edit-buttons');
-        const updateBtn = document.getElementById('update-btn');
-        const cancelEditBtn = document.getElementById('cancel-edit-btn');
-        const addCategoryForm = document.getElementById('add-category-form');
-        const categoryNameInput = document.getElementById('category-name');
-        const categoryListDiv = document.getElementById('category-list');
-        const toast = document.getElementById('toast');
-
-        // --- 2. FIREBASE INITIALIZATION & AUTHENTICATION ---
         function initializeAppCore() {
             try {
                 const app = initializeApp(firebaseConfig);
-                db = getFirestore(app);
-                auth = getAuth(app);
+                db = getFirestore(app); auth = getAuth(app);
                 setupAuthListener();
-            } catch(e) {
-                console.error("Firebase initialization failed", e);
-                document.body.innerHTML = "<h1>Erro Crítico: Falha ao conectar com o Firebase. Verifique a configuração.</h1>";
-            }
+                renderColorPalette();
+                if (isTestEnvironment) { elements.testModeBtn.classList.remove('hidden'); }
+            } catch (e) { document.body.innerHTML = `<h1>Erro Crítico: ${e.message}</h1>`; }
         }
 
         function setupAuthListener() {
             onAuthStateChanged(auth, user => {
                 if (user) {
-                    // User is signed in
-                    userId = user.uid;
-                    userEmail = user.email;
-                    userPhotoURL = user.photoURL;
-                    
-                    loginPage.style.display = 'none';
-                    mainApp.style.display = 'flex';
-
+                    userId = user.uid; userEmail = user.isAnonymous ? "Usuário de Teste" : user.email; userPhotoURL = user.photoURL;
+                    elements.loginPage.style.display = 'none'; elements.mainApp.style.display = 'flex';
                     renderUserInfo();
-                    
                     promptsCollectionRef = collection(db, `users/${userId}/prompts`);
                     categoriesCollectionRef = collection(db, `users/${userId}/categories`);
                     listenForData();
                 } else {
-                    // User is signed out
-                    userId = null;
-                    mainApp.style.display = 'none';
-                    loginPage.style.display = 'flex';
-                    if (unsubscribePrompts) unsubscribePrompts();
-                    if (unsubscribeCategories) unsubscribeCategories();
+                    userId = null; elements.mainApp.style.display = 'none'; elements.loginPage.style.display = 'flex';
+                    if (unsubscribePrompts) unsubscribePrompts(); if (unsubscribeCategories) unsubscribeCategories();
                 }
             });
-        }
-
-        // --- AUTHENTICATION HANDLERS ---
-        async function handleGoogleLogin() {
-            const provider = new GoogleAuthProvider();
-            try {
-                await signInWithPopup(auth, provider);
-            } catch (error) {
-                console.error("Google login failed", error);
-                showToast(`Erro no login: ${error.message}`, true);
-            }
-        }
-
-        async function handleEmailLogin(e) {
-            e.preventDefault();
-            const email = emailInput.value;
-            const password = passwordInput.value;
-            try {
-                await signInWithEmailAndPassword(auth, email, password);
-            } catch (error) {
-                if (error.code === 'auth/user-not-found') {
-                    try {
-                        await createUserWithEmailAndPassword(auth, email, password);
-                    } catch (createError) {
-                        showToast(`Falha ao registrar: ${createError.message}`, true);
-                    }
-                } else {
-                    showToast(`Falha no login: ${error.message}`, true);
-                }
-            }
         }
         
-        async function handleLogout() {
-            await signOut(auth);
-        }
-
-        // --- 3. DATA HANDLING ---
         function listenForData() {
-            listenForCategories();
-            listenForPrompts();
-        }
-
-        function listenForCategories() {
             if (unsubscribeCategories) unsubscribeCategories();
-            const q = query(categoriesCollectionRef);
-            unsubscribeCategories = onSnapshot(q, snapshot => {
+            unsubscribeCategories = onSnapshot(query(categoriesCollectionRef), snapshot => {
                 allCategories = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                renderCategories();
+                renderCategoryManagementList();
                 populateCategorySelect();
+                renderCategoryFilters();
+                renderKanbanBoard();
             });
-        }
-
-        function listenForPrompts() {
             if (unsubscribePrompts) unsubscribePrompts();
-            const q = query(promptsCollectionRef);
-            unsubscribePrompts = onSnapshot(q, snapshot => {
+            unsubscribePrompts = onSnapshot(query(promptsCollectionRef), snapshot => {
                 allPrompts = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                displayFilteredPrompts();
+                renderKanbanBoard();
+                renderTrashView();
             });
         }
-
-        async function handleAddCategory(e) {
-            e.preventDefault();
-            const categoryName = categoryNameInput.value.trim();
-            if (categoryName) {
-                try {
-                    await addDoc(categoriesCollectionRef, { name: categoryName });
-                    categoryNameInput.value = '';
-                } catch (error) {
-                    console.error("Error adding category:", error);
-                    showToast("Falha ao adicionar categoria.", true);
-                }
-            }
-        }
-
-        async function handleFormSubmit(e) {
+        
+        const handleFormSubmit = async (e) => {
             e.preventDefault();
             const promptData = {
-                title: promptTitleInput.value.trim(),
-                categoryId: promptCategorySelect.value,
-                text: promptTextInput.value.trim(),
-                link: promptLinkInput.value.trim(),
+                title: elements.promptTitle.value.trim(), categoryId: elements.promptCategorySelect.value, text: elements.promptText.value.trim(),
+                link: elements.promptLink.value.trim(), isTrashed: false
             };
-
-            if (!promptData.categoryId) {
-                showToast("Por favor, selecione uma categoria.", true);
-                return;
+            if (!promptData.categoryId) { return showToast("Selecione uma categoria.", true); }
+            if (currentEditingId) {
+                try { await updateDoc(doc(promptsCollectionRef, currentEditingId), promptData); showToast("Prompt atualizado!"); resetForm(); }
+                catch (error) { showToast("Falha ao atualizar.", true); }
+            } else {
+                try { await addDoc(promptsCollectionRef, { ...promptData, createdAt: serverTimestamp() }); showToast("Prompt salvo!"); resetForm(true); }
+                catch (error) { showToast("Falha ao salvar.", true); }
             }
+        };
 
-            if (currentEditingId) { // Update
+        const handleAddCategory = async (e) => {
+            e.preventDefault();
+            const categoryName = elements.categoryName.value.trim();
+            const selectedColor = document.querySelector('.color-dot.selected')?.dataset.color || colorPalette[0];
+            if (categoryName) {
                 try {
-                    const docRef = doc(db, `users/${userId}/prompts`, currentEditingId);
-                    await updateDoc(docRef, promptData);
-                    showToast("Prompt atualizado!");
-                    resetForm();
-                } catch (error) {
-                    console.error("Update Error:", error);
-                    showToast("Falha ao atualizar.", true);
-                }
-            } else { // Add new
-                try {
-                    await addDoc(promptsCollectionRef, { ...promptData, createdAt: serverTimestamp() });
-                    showToast("Prompt salvo!");
-                    resetForm(true);
-                } catch (error) {
-                    console.error("Add Error:", error);
-                    showToast("Falha ao salvar.", true);
-                }
+                    await addDoc(categoriesCollectionRef, { name: categoryName, color: selectedColor });
+                    elements.categoryName.value = '';
+                } catch (error) { showToast("Falha ao adicionar categoria.", true); }
             }
+        };
+
+        const trashPrompt = async (id) => await updateDoc(doc(promptsCollectionRef, id), { isTrashed: true });
+        const restorePrompt = async (id) => await updateDoc(doc(promptsCollectionRef, id), { isTrashed: false });
+        const deletePromptPermanently = async (id) => {
+             if (confirm("Excluir este prompt permanentemente?")) { await deleteDoc(doc(promptsCollectionRef, id)); }
+        }
+
+        const renderUserInfo = () => {
+            const photo = userPhotoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(userEmail)}&background=random`;
+            elements.userInfo.innerHTML = `<span class="mr-4 text-gray-300 hidden sm:inline">${userEmail}</span><img src="${photo}" alt="Avatar" class="w-10 h-10 rounded-full mr-4"><button id="logout-btn" class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg">Sair</button>`;
+            document.getElementById('logout-btn').addEventListener('click', () => signOut(auth));
+        };
+
+        function renderKanbanBoard() {
+            const term = elements.searchInput.value.toLowerCase();
+            let activePrompts = allPrompts.filter(p => !p.isTrashed);
+
+            if (selectedCategoryId !== 'all') {
+                activePrompts = activePrompts.filter(p => p.categoryId === selectedCategoryId);
+            }
+             if (term) {
+                activePrompts = activePrompts.filter(p => p.title.toLowerCase().includes(term));
+            }
+            
+            const visibleCategories = allCategories.filter(cat => activePrompts.some(p => p.categoryId === cat.id));
+
+            elements.kanbanBoard.innerHTML = visibleCategories.map(cat => {
+                const promptsInCategory = activePrompts.filter(p => p.categoryId === cat.id);
+                return `
+                <div class="flex items-center mb-6">
+                    <div class="w-10 flex-shrink-0 text-center font-bold text-sm category-label" style="color: ${cat.color};">${escapeHTML(cat.name)}</div>
+                    <div class="flex-1 min-w-0 flex items-center gap-4 overflow-x-auto p-2 border-l-4" style="border-color: ${cat.color};">
+                        ${promptsInCategory.length > 0 ? promptsInCategory.sort((a,b) => (b.createdAt?.toMillis() || 0) - (a.createdAt?.toMillis() || 0)).map(prompt => renderPromptCard(prompt, cat)).join('') : ''}
+                    </div>
+                </div>`;
+            }).join('');
+             if(elements.kanbanBoard.innerHTML.trim() === '') {
+                 elements.kanbanBoard.innerHTML = `<p class="text-gray-500 text-center w-full">Nenhum prompt encontrado para os filtros selecionados.</p>`;
+             }
+        }
+
+        function renderPromptCard(prompt, category) {
+            const linkTag = prompt.link ? `<a href="${escapeHTML(prompt.link)}" target="_blank" class="text-blue-400 hover:underline text-sm mt-2 block" data-action="link"><i class="fas fa-link mr-1"></i> Ver Conversa</a>` : '';
+            return `
+            <div class="prompt-card w-64 flex-shrink-0" data-prompt-id="${prompt.id}" data-prompt-text="${escapeHTML(prompt.text)}">
+                <div class="compact-view relative bg-gray-800 p-4 rounded-lg cursor-pointer h-24 flex flex-col justify-between transition-all hover:bg-gray-700">
+                    <button data-action="copy" class="absolute top-2 right-2 text-gray-400 hover:text-white p-2 rounded-md hidden md:flex items-center justify-center" title="Copiar"><i class="fas fa-copy"></i></button>
+                    <h3 class="text-white font-bold truncate pr-8">${escapeHTML(prompt.title)}</h3>
+                    <div><span class="bg-gray-700 text-gray-300 text-xs font-semibold px-2 py-0.5 rounded-full">${escapeHTML(category.name)}</span></div>
+                </div>
+                <div class="expanded-view bg-gray-800 p-4 rounded-b-lg">
+                    <div class="flex justify-end mb-2">
+                       <button data-action="edit" class="text-gray-400 hover:text-blue-400 p-1"><i class="fas fa-pencil-alt"></i></button>
+                       <button data-action="trash" class="text-gray-400 hover:text-orange-500 p-1"><i class="fas fa-trash"></i></button>
+                    </div>
+                    <p class="text-gray-300 mb-2 max-h-40 overflow-y-auto">${escapeHTML(prompt.text)}</p>
+                    ${linkTag}
+                </div>
+            </div>`;
+        }
+
+        function renderTrashView() {
+            const trashedPrompts = allPrompts.filter(p => p.isTrashed);
+            if (trashedPrompts.length === 0) {
+                 elements.trashedPromptList.innerHTML = `<p class="text-gray-500 text-center">A lixeira está vazia.</p>`;
+                 return;
+            }
+            elements.trashedPromptList.innerHTML = trashedPrompts.map(p => `
+                 <div class="flex items-center justify-between bg-gray-800 p-4 rounded-lg">
+                    <div>
+                        <p class="font-bold">${escapeHTML(p.title)}</p>
+                        <p class="text-sm text-gray-400">${escapeHTML(p.text).substring(0, 40)}...</p>
+                    </div>
+                    <div class="flex gap-2">
+                        <button data-action="restore" data-id="${p.id}" class="text-green-400 hover:text-white" title="Restaurar"><i class="fas fa-undo"></i></button>
+                        <button data-action="delete-permanent" data-id="${p.id}" class="text-red-500 hover:text-white" title="Excluir Permanentemente"><i class="fas fa-fire"></i></button>
+                    </div>
+                 </div>`).join('');
         }
         
-        async function deletePrompt(id) {
-            if (confirm("Tem certeza que deseja deletar este prompt?")) {
-                try {
-                    await deleteDoc(doc(db, `users/${userId}/prompts`, id));
-                    showToast("Prompt deletado.");
-                } catch (error) {
-                    showToast("Falha ao deletar.", true);
+        function renderCategoryFilters() {
+            const buttons = allCategories.map(cat => 
+                `<button data-category-id="${cat.id}" class="category-filter-btn px-3 py-1 text-sm font-medium rounded-full transition-colors" style="border: 1px solid ${cat.color}; color: ${cat.color};">${escapeHTML(cat.name)}</button>`
+            ).join('');
+            elements.categoryFilters.innerHTML = `<button data-category-id="all" class="category-filter-btn px-3 py-1 text-sm font-medium rounded-full transition-colors bg-indigo-600 text-white">Todos</button>${buttons}`;
+            updateFilterButtonsUI();
+        }
+        
+        function updateFilterButtonsUI() {
+            document.querySelectorAll('.category-filter-btn').forEach(btn => {
+                const isSelected = btn.dataset.categoryId === selectedCategoryId;
+                btn.classList.toggle('bg-indigo-600', isSelected && btn.dataset.categoryId === 'all');
+                btn.classList.toggle('text-white', isSelected);
+                if (isSelected && btn.dataset.categoryId !== 'all') {
+                    btn.style.backgroundColor = allCategories.find(c => c.id === btn.dataset.categoryId)?.color || '';
+                } else if (btn.dataset.categoryId !== 'all') {
+                     btn.style.backgroundColor = 'transparent';
                 }
-            }
+            });
         }
 
-        // --- 4. UI RENDERING & INTERACTIONS ---
-        function renderUserInfo() {
-            const photo = userPhotoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(userEmail)}&background=random`;
-            userInfo.innerHTML = `
-                <span class="mr-4 text-gray-300 hidden sm:inline">${userEmail}</span>
-                <img src="${photo}" alt="User Avatar" class="w-10 h-10 rounded-full mr-4">
-                <button id="logout-btn" class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg transition">
-                    Sair
-                </button>
-            `;
-            document.getElementById('logout-btn').addEventListener('click', handleLogout);
-        }
-
-        function renderCategories() {
-            categoryListDiv.innerHTML = allCategories.map(cat => `
-                <div class="bg-gray-700 p-2 rounded-lg text-sm text-center">${escapeHTML(cat.name)}</div>
-            `).join('');
+        function renderCategoryManagementList() {
+            elements.categoryListManagement.innerHTML = allCategories.map(cat => `<div class="bg-gray-700 p-2 rounded-lg text-sm text-center" style="border-left: 4px solid ${cat.color};">${escapeHTML(cat.name)}</div>`).join('');
         }
         
         function populateCategorySelect() {
-            const currentSelection = promptCategorySelect.value;
-            promptCategorySelect.innerHTML = '<option value="">Selecione uma categoria...</option>';
+            const currentVal = elements.promptCategorySelect.value;
+            elements.promptCategorySelect.innerHTML = '<option value="">Selecione uma categoria...</option>';
             allCategories.forEach(cat => {
                 const option = document.createElement('option');
-                option.value = cat.id;
-                option.textContent = cat.name;
-                promptCategorySelect.appendChild(option);
+                option.value = cat.id; option.textContent = cat.name;
+                elements.promptCategorySelect.appendChild(option);
             });
-            promptCategorySelect.value = currentSelection;
+            elements.promptCategorySelect.value = currentVal;
+        }
+        
+        function renderColorPalette() {
+            elements.colorPalette.innerHTML = colorPalette.map((color, index) =>
+                `<div class="color-dot w-8 h-8 rounded-full cursor-pointer ${index === 0 ? 'selected' : ''}" style="background-color: ${color};" data-color="${color}"></div>`
+            ).join('');
         }
 
-        function displayFilteredPrompts() {
-            const searchTerm = searchInput.value.toLowerCase();
-            const filteredPrompts = allPrompts.filter(prompt =>
-                prompt.title.toLowerCase().includes(searchTerm) ||
-                prompt.text.toLowerCase().includes(searchTerm)
-            );
-            renderPrompts(filteredPrompts);
-        }
-
-        function renderPrompts(prompts) {
-             if (prompts.length === 0 && allPrompts.length > 0) {
-                promptList.innerHTML = `<p class="text-gray-400 col-span-full text-center">Nenhum prompt encontrado para sua busca.</p>`;
+        const handleCardClick = (e) => {
+            const card = e.target.closest('.prompt-card'); if (!card) return;
+            const button = e.target.closest('button[data-action]');
+            const link = e.target.closest('a[data-action="link"]');
+            
+            if (button || link) {
+                e.stopPropagation();
+                const id = card.dataset.promptId;
+                const prompt = allPrompts.find(p => p.id === id);
+                if (!prompt) return;
+                const action = button?.dataset.action;
+                if (action === 'copy') { copyToClipboard(prompt.text); }
+                if (action === 'trash') { trashPrompt(id); }
+                if (action === 'edit') { enterEditMode(prompt); }
                 return;
             }
-             if (allPrompts.length === 0) {
-                 promptList.innerHTML = `<p class="text-gray-400 col-span-full text-center">Você ainda não tem prompts. Adicione um!</p>`;
-                 return;
-            }
-            promptList.innerHTML = prompts.sort((a,b) => (b.createdAt?.toMillis() || 0) - (a.createdAt?.toMillis() || 0))
-            .map(prompt => {
-                const category = allCategories.find(c => c.id === prompt.categoryId);
-                const categoryTag = category ? `<span class="bg-indigo-500 text-indigo-50 text-xs font-semibold mr-2 px-2.5 py-0.5 rounded-full">${escapeHTML(category.name)}</span>` : '';
-                const linkTag = prompt.link ? `<a href="${escapeHTML(prompt.link)}" target="_blank" class="text-blue-400 hover:underline text-sm mt-2 block"><i class="fas fa-link mr-1"></i> Ver Conversa</a>` : '';
+            if (wasLongPress) { wasLongPress = false; return; }
+            card.classList.toggle('expanded');
+        };
 
-                return `
-                <div class="bg-gray-800 p-5 rounded-2xl shadow-lg flex flex-col" data-prompt-id="${prompt.id}">
-                    <div class="flex-grow">
-                        <div class="flex justify-between items-start mb-2">
-                            <h3 class="text-xl font-bold text-white break-words">${escapeHTML(prompt.title)}</h3>
-                            <div class="flex-shrink-0 ml-2">
-                                <button data-action="edit" class="text-gray-400 hover:text-blue-400 p-1"><i class="fas fa-pencil-alt"></i></button>
-                                <button data-action="delete" class="text-gray-400 hover:text-red-500 p-1"><i class="fas fa-trash-alt"></i></button>
-                            </div>
-                        </div>
-                        <div class="flex items-center mb-2">${categoryTag}</div>
-                        <p class="text-gray-300 mb-2 prompt-card-content">${escapeHTML(prompt.text)}</p>
-                        ${linkTag}
-                    </div>
-                    <div class="flex items-center justify-end mt-auto pt-4 border-t border-gray-700">
-                        <button data-action="copy" class="copy-btn bg-gray-700 hover:bg-indigo-600 text-gray-200 font-semibold py-2 px-4 rounded-lg transition flex items-center gap-2">
-                            <i class="fas fa-copy"></i><span>Copiar</span>
-                        </button>
-                    </div>
-                </div>
-                `;
-            }).join('');
-        }
-        
-        function handleListClick(e) {
-            const button = e.target.closest('button');
-            if (!button) return;
-            const action = button.dataset.action;
-            const card = button.closest('[data-prompt-id]');
-            const id = card?.dataset.promptId;
-            if (!id) return;
-            const promptToActOn = allPrompts.find(p => p.id === id);
-
-            switch (action) {
-                case 'copy': copyToClipboard(promptToActOn.text, button); break;
-                case 'delete': deletePrompt(id); break;
-                case 'edit': enterEditMode(promptToActOn); break;
-            }
-        }
-        
-        function enterEditMode(prompt) {
+        const enterEditMode = (prompt) => {
             currentEditingId = prompt.id;
-            formTitle.textContent = "Editar Prompt";
-            promptTitleInput.value = prompt.title;
-            promptCategorySelect.value = prompt.categoryId;
-            promptTextInput.value = prompt.text;
-            promptLinkInput.value = prompt.link || '';
-            saveBtn.classList.add('hidden');
-            editButtons.classList.remove('hidden');
-            promptForm.scrollIntoView({ behavior: 'smooth' });
-        }
+            elements.formTitle.textContent = "Editar Prompt";
+            elements.promptTitle.value = prompt.title;
+            elements.promptCategorySelect.value = prompt.categoryId;
+            elements.promptText.value = prompt.text;
+            elements.promptLink.value = prompt.link || '';
+            elements.formButtons.classList.add('hidden');
+            elements.editButtons.classList.remove('hidden');
+        };
         
-        function resetForm(clearInputs = true) {
+        const resetForm = (clearInputs = true) => {
             currentEditingId = null;
-            formTitle.textContent = "Adicionar Novo Prompt";
-            if (clearInputs) promptForm.reset();
-            saveBtn.classList.remove('hidden');
-            editButtons.classList.add('hidden');
-        }
+            elements.formTitle.textContent = "Adicionar Novo Prompt";
+            if (clearInputs) elements.promptForm.reset();
+            elements.formButtons.classList.remove('hidden');
+            elements.editButtons.classList.add('hidden');
+        };
+        
+        const copyToClipboard = (text) => {
+            const ta = document.createElement('textarea'); ta.value = text; document.body.appendChild(ta);
+            ta.select();
+            try { document.execCommand('copy'); showToast("Prompt copiado!"); } 
+            catch (err) { showToast("Falha ao copiar.", true); }
+            document.body.removeChild(ta);
+        };
 
-        // --- UTILITY FUNCTIONS ---
-        function copyToClipboard(text, buttonElement) {
-            navigator.clipboard.writeText(text).then(() => {
-                showToast("Prompt copiado!");
-                if (buttonElement) {
-                    const span = buttonElement.querySelector('span');
-                    if (span) {
-                        span.textContent = 'Copiado!';
-                        setTimeout(() => { span.textContent = 'Copiar'; }, 2000);
-                    }
-                }
-            }, () => {
-                showToast("Falha ao copiar.", true);
-            });
-        }
-
-        function showToast(message, isError = false) {
-            toast.innerHTML = `<i class="fas ${isError ? 'fa-exclamation-circle' : 'fa-check-circle'} mr-2"></i> ${message}`;
-            toast.className = `fixed bottom-10 right-10 text-white py-3 px-6 rounded-lg shadow-xl transform transition-all duration-300 ${isError ? 'bg-red-500' : 'bg-green-500'} opacity-100 translate-y-0`;
+        const showToast = (message, isError = false) => {
+            elements.toast.innerHTML = `<i class="fas ${isError ? 'fa-exclamation-circle' : 'fa-check-circle'} mr-2"></i> ${message}`;
+            elements.toast.className = `fixed bottom-10 right-10 z-50 text-white py-3 px-6 rounded-lg shadow-xl transform transition-all duration-300 ${isError ? 'bg-red-500' : 'bg-green-500'} opacity-100 translate-y-0`;
             setTimeout(() => {
-                toast.classList.replace('opacity-100', 'opacity-0');
-                toast.classList.replace('translate-y-0', 'translate-y-20');
+                elements.toast.classList.replace('opacity-100', 'opacity-0');
+                elements.toast.classList.replace('translate-y-0', 'translate-y-20');
             }, 3000);
-        }
+        };
+        
+        const escapeHTML = (str) => str?.replace(/[&<>"']/g, tag => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[tag] || tag)) || '';
 
-        function escapeHTML(str) {
-            return str?.replace(/[&<>"']/g, function (tag) {
-                const replacements = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
-                return replacements[tag] || tag;
-            }) || '';
-        }
-
-        // --- 5. EVENT LISTENERS ---
+        // --- EVENT LISTENERS ---
         document.addEventListener('DOMContentLoaded', initializeAppCore);
-        googleLoginBtn.addEventListener('click', handleGoogleLogin);
-        emailLoginForm.addEventListener('submit', handleEmailLogin);
-        promptForm.addEventListener('submit', handleFormSubmit);
-        addCategoryForm.addEventListener('submit', handleAddCategory);
-        promptList.addEventListener('click', handleListClick);
-        searchInput.addEventListener('input', displayFilteredPrompts);
-        cancelEditBtn.addEventListener('click', () => resetForm(true));
-
+        elements.googleLoginBtn.addEventListener('click', async () => { try { await signInWithPopup(auth, new GoogleAuthProvider()); } catch (e) { showToast(`Erro: ${e.code}`, true); } });
+        elements.emailLoginForm.addEventListener('submit', async (e) => {
+            e.preventDefault(); const email = elements.emailInput.value, password = elements.passwordInput.value;
+            try { await signInWithEmailAndPassword(auth, email, password); }
+            catch (error) { if (error.code === 'auth/user-not-found') { try { await createUserWithEmailAndPassword(auth, email, password); } catch (createError) { showToast(`Erro: ${createError.code}`, true); } } else { showToast(`Erro: ${error.code}`, true); } }
+        });
+        elements.testModeBtn.addEventListener('click', async () => { try { await signInAnonymously(auth); } catch (e) { showToast(`Erro: ${e.code}`, true); }});
+        elements.promptForm.addEventListener('submit', handleFormSubmit);
+        elements.addCategoryForm.addEventListener('submit', handleAddCategory);
+        elements.kanbanBoard.addEventListener('click', handleCardClick);
+        elements.searchInput.addEventListener('input', renderKanbanBoard);
+        elements.cancelEditBtn.addEventListener('click', () => resetForm(true));
+        elements.colorPalette.addEventListener('click', (e) => {
+            if (e.target.classList.contains('color-dot')) {
+                document.querySelectorAll('.color-dot').forEach(dot => dot.classList.remove('selected'));
+                e.target.classList.add('selected');
+            }
+        });
+        elements.trashViewBtn.addEventListener('click', () => { elements.kanbanBoard.classList.add('hidden'); elements.trashView.classList.remove('hidden'); });
+        elements.backToBoardBtn.addEventListener('click', () => { elements.trashView.classList.add('hidden'); elements.kanbanBoard.classList.remove('hidden'); });
+        elements.trashedPromptList.addEventListener('click', (e) => {
+            const button = e.target.closest('button[data-action]'); if (!button) return;
+            const { action, id } = button.dataset;
+            if (action === 'restore') restorePrompt(id);
+            if (action === 'delete-permanent') deletePromptPermanently(id);
+        });
+        elements.categoryFilters.addEventListener('click', (e) => {
+             const button = e.target.closest('.category-filter-btn');
+             if (!button) return;
+             selectedCategoryId = button.dataset.categoryId;
+             updateFilterButtonsUI();
+             renderKanbanBoard();
+        });
     </script>
 </body>
 </html>
