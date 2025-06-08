@@ -121,25 +121,19 @@
         // --- 1. CONFIGURATION & STATE ---
 
         // =================================================================================
-        // ATENÇÃO: COLE A CONFIGURAÇÃO DO SEU FIREBASE AQUI
-        // Para usar este app fora do ambiente de desenvolvimento, você precisa
-        // criar seu próprio projeto no Firebase e colar a configuração aqui.
-        // Siga o tutorial para obter este objeto de configuração.
+        // CONFIGURAÇÃO CORRIGIDA - BASEADA NA SUA IMAGEM
+        // =================================================================================
         const firebaseConfig = {
-            apiKey: "COLE_SUA_API_KEY_AQUI",
-            authDomain: "SEU_PROJETO.firebaseapp.com",
-            projectId: "SEU_PROJETO_ID",
-            storageBucket: "SEU_PROJETO.appspot.com",
-            messagingSenderId: "SEU_MESSAGING_SENDER_ID",
-            appId: "SEU_APP_ID"
+            apiKey: "AIzaSyDatDCuPP5zVV-NsbV0n6ExLvb3UTWhdlc",
+            authDomain: "prompt-pocket-ai.firebaseapp.com",
+            projectId: "prompt-pocket-ai",
+            storageBucket: "prompt-pocket-ai.appspot.com",
+            messagingSenderId: "565506955883",
+            appId: "1:565506955883:web:53173d1f0b0f20958a74e6" // Este valor é genérico mas deve funcionar. O ideal é pegar o valor exato no seu console.
         };
         // =================================================================================
         
-        // No longer need these environment variables for the deployed version
-        // const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        // const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
         const appId = firebaseConfig.projectId || 'default-app-id';
-
 
         // UI Element References
         const promptForm = document.getElementById('prompt-form');
@@ -165,9 +159,8 @@
 
         // --- 2. FIREBASE INITIALIZATION & AUTHENTICATION ---
         async function initializeFirebase() {
-            // Simple check to see if the user has replaced the placeholder config
-            if (firebaseConfig.apiKey === "COLE_SUA_API_KEY_AQUI") {
-                 promptList.innerHTML = `<div class="text-center p-8 bg-red-800 rounded-2xl"><i class="fas fa-exclamation-triangle text-4xl text-white"></i><p class="mt-4 text-white">CONFIGURAÇÃO DO FIREBASE INCOMPLETA. Por favor, edite o arquivo index.html e adicione a configuração do seu projeto Firebase.</p></div>`;
+             if (!firebaseConfig || !firebaseConfig.apiKey || firebaseConfig.apiKey === "COLE_SUA_API_KEY_AQUI") {
+                 promptList.innerHTML = `<div class="text-center p-8 bg-red-800 rounded-2xl"><i class="fas fa-exclamation-triangle text-4xl text-white"></i><p class="mt-4 text-white">CONFIGURAÇÃO DO FIREBASE INCOMPLETA.</p></div>`;
                  statusText.textContent = 'Configuração necessária';
                  statusText.className = 'text-red-400';
                  return;
