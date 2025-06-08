@@ -115,13 +115,31 @@
     <script type="module">
         // Import necessary functions from Firebase SDKs
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, addDoc, onSnapshot, query, doc, deleteDoc, updateDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // --- 1. CONFIGURATION & STATE ---
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+        // =================================================================================
+        // ATENÇÃO: COLE A CONFIGURAÇÃO DO SEU FIREBASE AQUI
+        // Para usar este app fora do ambiente de desenvolvimento, você precisa
+        // criar seu próprio projeto no Firebase e colar a configuração aqui.
+        // Siga o tutorial para obter este objeto de configuração.
+        const firebaseConfig = {
+            apiKey: "COLE_SUA_API_KEY_AQUI",
+            authDomain: "SEU_PROJETO.firebaseapp.com",
+            projectId: "SEU_PROJETO_ID",
+            storageBucket: "SEU_PROJETO.appspot.com",
+            messagingSenderId: "SEU_MESSAGING_SENDER_ID",
+            appId: "SEU_APP_ID"
+        };
+        // =================================================================================
+        
+        // No longer need these environment variables for the deployed version
+        // const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        // const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+        const appId = firebaseConfig.projectId || 'default-app-id';
+
 
         // UI Element References
         const promptForm = document.getElementById('prompt-form');
@@ -147,6 +165,14 @@
 
         // --- 2. FIREBASE INITIALIZATION & AUTHENTICATION ---
         async function initializeFirebase() {
+            // Simple check to see if the user has replaced the placeholder config
+            if (firebaseConfig.apiKey === "COLE_SUA_API_KEY_AQUI") {
+                 promptList.innerHTML = `<div class="text-center p-8 bg-red-800 rounded-2xl"><i class="fas fa-exclamation-triangle text-4xl text-white"></i><p class="mt-4 text-white">CONFIGURAÇÃO DO FIREBASE INCOMPLETA. Por favor, edite o arquivo index.html e adicione a configuração do seu projeto Firebase.</p></div>`;
+                 statusText.textContent = 'Configuração necessária';
+                 statusText.className = 'text-red-400';
+                 return;
+            }
+
             try {
                 const app = initializeApp(firebaseConfig);
                 db = getFirestore(app);
@@ -159,7 +185,8 @@
                         statusText.className = 'text-green-400';
                         userIdDisplay.textContent = userId;
 
-                        const collectionPath = `artifacts/${appId}/users/${userId}/prompts`;
+                        // NOTE: Path updated to be simpler for standalone deployment
+                        const collectionPath = `users/${userId}/prompts`;
                         promptsCollectionRef = collection(db, collectionPath);
                         listenForPrompts();
                     } else {
@@ -167,15 +194,12 @@
                         await signInAnonymously(auth);
                     }
                 });
-
-                if (initialAuthToken) {
-                    await signInWithCustomToken(auth, initialAuthToken);
-                } else {
-                    await signInAnonymously(auth);
-                }
+                
             } catch (error) {
                 console.error("Firebase Init Error:", error);
-                promptList.innerHTML = `<p class="text-red-400 text-center">Erro de conexão.</p>`;
+                promptList.innerHTML = `<p class="text-red-400 text-center">Erro de conexão. Verifique a configuração do Firebase.</p>`;
+                 statusText.textContent = 'Erro de Conexão';
+                 statusText.className = 'text-red-400';
             }
         }
         
@@ -212,7 +236,7 @@
             if (currentEditingId) {
                 // Update existing prompt
                 try {
-                    const docRef = doc(db, `artifacts/${appId}/users/${userId}/prompts`, currentEditingId);
+                    const docRef = doc(db, `users/${userId}/prompts`, currentEditingId);
                     await updateDoc(docRef, promptData);
                     showToast("Prompt atualizado com sucesso!");
                     resetForm();
@@ -241,7 +265,7 @@
             // Switched to a custom modal/confirm in a real app, but confirm is fine for this environment.
             if (confirm("Tem certeza que deseja deletar este prompt?")) {
                 try {
-                    const docRef = doc(db, `artifacts/${appId}/users/${userId}/prompts`, id);
+                    const docRef = doc(db, `users/${userId}/prompts`, id);
                     await deleteDoc(docRef);
                     showToast("Prompt deletado.");
                 } catch (error) {
