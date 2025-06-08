@@ -111,20 +111,27 @@
                     <span class="text-indigo-400">PromptPocket</span> AI
                 </h1>
                 <div class="flex items-center gap-4">
-                    <div class="relative">
+                    <div class="relative hidden md:block">
                         <span class="absolute inset-y-0 left-0 flex items-center pl-3"><i class="fas fa-search text-gray-400"></i></span>
                         <input type="search" id="search-input" placeholder="Buscar prompts..." class="w-full bg-gray-800 text-white rounded-lg py-2 pl-10 pr-4 focus:ring-2 focus:ring-indigo-500">
                     </div>
-                    <button id="trash-view-btn" class="text-gray-400 hover:text-white transition-colors" title="Ver Lixeira"><i class="fas fa-trash-alt fa-lg"></i></button>
+                    <button id="open-sidebar-btn" class="md:hidden text-gray-300 hover:text-white"><i class="fas fa-plus fa-lg"></i></button>
+                    <button id="trash-view-btn" class="text-gray-300 hover:text-white"><i class="fas fa-trash-alt fa-lg"></i></button>
                     <div id="user-info" class="flex items-center"></div>
                 </div>
             </div>
-            <div id="category-filters" class="flex items-center gap-2 mt-4 flex-wrap"></div>
+            <div class="relative md:hidden mt-4">
+                <span class="absolute inset-y-0 left-0 flex items-center pl-3"><i class="fas fa-search text-gray-400"></i></span>
+                <input type="search" id="mobile-search-input" placeholder="Buscar prompts..." class="w-full bg-gray-800 text-white rounded-lg py-2 pl-10 pr-4 focus:ring-2 focus:ring-indigo-500">
+            </div>
+            <div id="category-filters" class="flex items-center gap-2 mt-4 overflow-x-auto pb-2"></div>
         </header>
 
         <div class="flex flex-1 overflow-hidden">
-            <!-- Left Column: Forms & Category Management -->
-            <aside class="w-80 md:w-96 p-4 overflow-y-auto bg-gray-900 border-r border-gray-700">
+            <!-- Left Column: Forms & Category Management (Off-canvas on mobile) -->
+            <div id="sidebar-backdrop" class="fixed inset-0 bg-black bg-opacity-50 z-30 hidden md:hidden"></div>
+            <aside id="sidebar" class="fixed inset-y-0 left-0 z-40 w-80 p-4 overflow-y-auto bg-gray-900 border-r border-gray-700 transform -translate-x-full md:relative md:translate-x-0 transition-transform duration-300 ease-in-out">
+                <button id="close-sidebar-btn" class="absolute top-4 right-4 text-gray-400 hover:text-white md:hidden"><i class="fas fa-times fa-lg"></i></button>
                 <div class="sticky top-0 bg-gray-900 py-2">
                     <h2 id="form-title" class="text-xl font-semibold mb-4 text-white">Adicionar Prompt</h2>
                 </div>
@@ -152,7 +159,7 @@
             </aside>
 
             <!-- Right Column: Kanban Board -->
-            <main id="kanban-board" class="flex-1 p-6 overflow-auto">
+            <main id="kanban-board" class="flex-1 p-4 md:p-6 overflow-auto">
                 <!-- Kanban rows will be injected here -->
             </main>
             
@@ -187,7 +194,7 @@
         let allPrompts = [], allCategories = [];
         let currentEditingId = null;
         let longPressTimer, wasLongPress = false;
-        let selectedCategoryId = 'all';
+        let selectedCategoryIds = [];
         
         const isTestEnvironment = typeof __initial_auth_token !== 'undefined';
         const colorPalette = ["#4f46e5", "#db2777", "#16a34a", "#ca8a04", "#2563eb", "#9333ea"]; // Indigo, Pink, Green, Amber, Blue, Purple
@@ -279,11 +286,12 @@
         };
 
         function renderKanbanBoard() {
-            const term = elements.searchInput.value.toLowerCase();
+            const searchTerm = elements.searchInput.value || elements.mobileSearchInput.value;
+            const term = searchTerm.toLowerCase();
             let activePrompts = allPrompts.filter(p => !p.isTrashed);
 
-            if (selectedCategoryId !== 'all') {
-                activePrompts = activePrompts.filter(p => p.categoryId === selectedCategoryId);
+            if (selectedCategoryIds.length > 0) {
+                activePrompts = activePrompts.filter(p => selectedCategoryIds.includes(p.categoryId));
             }
              if (term) {
                 activePrompts = activePrompts.filter(p => p.title.toLowerCase().includes(term));
@@ -294,7 +302,7 @@
             elements.kanbanBoard.innerHTML = visibleCategories.map(cat => {
                 const promptsInCategory = activePrompts.filter(p => p.categoryId === cat.id);
                 return `
-                <div class="flex items-center mb-6">
+                <div class="flex items-center mb-6 min-h-[8rem]">
                     <div class="w-10 flex-shrink-0 text-center font-bold text-sm category-label" style="color: ${cat.color};">${escapeHTML(cat.name)}</div>
                     <div class="flex-1 min-w-0 flex items-center gap-4 overflow-x-auto p-2 border-l-4" style="border-color: ${cat.color};">
                         ${promptsInCategory.length > 0 ? promptsInCategory.sort((a,b) => (b.createdAt?.toMillis() || 0) - (a.createdAt?.toMillis() || 0)).map(prompt => renderPromptCard(prompt, cat)).join('') : ''}
@@ -309,7 +317,7 @@
         function renderPromptCard(prompt, category) {
             const linkTag = prompt.link ? `<a href="${escapeHTML(prompt.link)}" target="_blank" class="text-blue-400 hover:underline text-sm mt-2 block" data-action="link"><i class="fas fa-link mr-1"></i> Ver Conversa</a>` : '';
             return `
-            <div class="prompt-card w-64 flex-shrink-0" data-prompt-id="${prompt.id}" data-prompt-text="${escapeHTML(prompt.text)}">
+            <div class="prompt-card w-56 md:w-64 flex-shrink-0" data-prompt-id="${prompt.id}" data-prompt-text="${escapeHTML(prompt.text)}">
                 <div class="compact-view relative bg-gray-800 p-4 rounded-lg cursor-pointer h-24 flex flex-col justify-between transition-all hover:bg-gray-700">
                     <button data-action="copy" class="absolute top-2 right-2 text-gray-400 hover:text-white p-2 rounded-md hidden md:flex items-center justify-center" title="Copiar"><i class="fas fa-copy"></i></button>
                     <h3 class="text-white font-bold truncate pr-8">${escapeHTML(prompt.title)}</h3>
@@ -347,20 +355,21 @@
         
         function renderCategoryFilters() {
             const buttons = allCategories.map(cat => 
-                `<button data-category-id="${cat.id}" class="category-filter-btn px-3 py-1 text-sm font-medium rounded-full transition-colors" style="border: 1px solid ${cat.color}; color: ${cat.color};">${escapeHTML(cat.name)}</button>`
+                `<button data-category-id="${cat.id}" class="category-filter-btn px-3 py-1 text-sm font-medium rounded-full transition-colors flex-shrink-0" style="border: 1px solid ${cat.color}; color: ${cat.color};">${escapeHTML(cat.name)}</button>`
             ).join('');
-            elements.categoryFilters.innerHTML = `<button data-category-id="all" class="category-filter-btn px-3 py-1 text-sm font-medium rounded-full transition-colors bg-indigo-600 text-white">Todos</button>${buttons}`;
+            elements.categoryFilters.innerHTML = `<button data-category-id="all" class="category-filter-btn px-3 py-1 text-sm font-medium rounded-full transition-colors bg-indigo-600 text-white flex-shrink-0">Todos</button>${buttons}`;
             updateFilterButtonsUI();
         }
         
         function updateFilterButtonsUI() {
             document.querySelectorAll('.category-filter-btn').forEach(btn => {
-                const isSelected = btn.dataset.categoryId === selectedCategoryId;
-                btn.classList.toggle('bg-indigo-600', isSelected && btn.dataset.categoryId === 'all');
+                const id = btn.dataset.categoryId;
+                const isSelected = id === 'all' ? selectedCategoryIds.length === 0 : selectedCategoryIds.includes(id);
+                
                 btn.classList.toggle('text-white', isSelected);
-                if (isSelected && btn.dataset.categoryId !== 'all') {
-                    btn.style.backgroundColor = allCategories.find(c => c.id === btn.dataset.categoryId)?.color || '';
-                } else if (btn.dataset.categoryId !== 'all') {
+                if (isSelected) {
+                    btn.style.backgroundColor = id === 'all' ? '#4f46e5' : allCategories.find(c => c.id === id)?.color || '';
+                } else {
                      btn.style.backgroundColor = 'transparent';
                 }
             });
@@ -458,6 +467,7 @@
         elements.addCategoryForm.addEventListener('submit', handleAddCategory);
         elements.kanbanBoard.addEventListener('click', handleCardClick);
         elements.searchInput.addEventListener('input', renderKanbanBoard);
+        elements.mobileSearchInput.addEventListener('input', renderKanbanBoard);
         elements.cancelEditBtn.addEventListener('click', () => resetForm(true));
         elements.colorPalette.addEventListener('click', (e) => {
             if (e.target.classList.contains('color-dot')) {
@@ -476,10 +486,34 @@
         elements.categoryFilters.addEventListener('click', (e) => {
              const button = e.target.closest('.category-filter-btn');
              if (!button) return;
-             selectedCategoryId = button.dataset.categoryId;
+             const categoryId = button.dataset.categoryId;
+             if (categoryId === 'all') {
+                selectedCategoryIds = [];
+             } else {
+                const index = selectedCategoryIds.indexOf(categoryId);
+                if (index > -1) {
+                    selectedCategoryIds.splice(index, 1); // Remove if exists
+                } else {
+                    selectedCategoryIds.push(categoryId); // Add if not exists
+                }
+             }
              updateFilterButtonsUI();
              renderKanbanBoard();
         });
+        // Sidebar toggle listeners
+        elements.openSidebarBtn.addEventListener('click', () => {
+            elements.sidebar.classList.remove('-translate-x-full');
+            elements.sidebarBackdrop.classList.remove('hidden');
+        });
+        elements.closeSidebarBtn.addEventListener('click', () => {
+            elements.sidebar.classList.add('-translate-x-full');
+            elements.sidebarBackdrop.classList.add('hidden');
+        });
+         elements.sidebarBackdrop.addEventListener('click', () => {
+            elements.sidebar.classList.add('-translate-x-full');
+            elements.sidebarBackdrop.classList.add('hidden');
+        });
+
     </script>
 </body>
 </html>
