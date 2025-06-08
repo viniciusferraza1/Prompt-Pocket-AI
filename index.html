@@ -93,10 +93,6 @@
                     <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google icon" class="w-6 h-6 mr-3">
                     Entrar com Google
                 </button>
-                
-                <button id="test-mode-btn" class="hidden mt-4 w-full bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-lg transition">
-                    <i class="fas fa-vial mr-2"></i> Modo de Teste
-                </button>
             </div>
         </div>
     </div>
@@ -173,6 +169,10 @@
             </main>
 
         </div>
+        <!-- Footer -->
+        <footer class="w-full text-center text-gray-500 py-4 border-t border-gray-700">
+             <p><i>Desenvolvido por Vinicius Ferraz</i></p>
+        </footer>
         <!-- Toast Notification -->
         <div id="toast" class="fixed bottom-10 right-10 z-50 bg-green-500 text-white py-3 px-6 rounded-lg shadow-xl transform translate-y-20 opacity-0 transition-all"></div>
     </div>
@@ -193,14 +193,48 @@
         let unsubscribePrompts, unsubscribeCategories;
         let allPrompts = [], allCategories = [];
         let currentEditingId = null;
-        let longPressTimer, wasLongPress = false;
         let selectedCategoryIds = [];
         
-        const isTestEnvironment = typeof __initial_auth_token !== 'undefined';
         const colorPalette = ["#4f46e5", "#db2777", "#16a34a", "#ca8a04", "#2563eb", "#9333ea"]; // Indigo, Pink, Green, Amber, Blue, Purple
         
-        const ui = document.querySelectorAll('[id]');
-        const elements = Array.from(ui).reduce((acc, el) => ({...acc, [el.id.replace(/-./g, c => c.substring(1).toUpperCase())]: el }), {});
+        // --- UI Elements ---
+        // This is a more robust way to get elements, preventing crashes if an element is missing.
+        const getElement = (id) => document.getElementById(id);
+        const elements = {
+            loginPage: getElement('login-page'),
+            mainApp: getElement('main-app'),
+            emailLoginForm: getElement('email-login-form'),
+            emailInput: getElement('email-input'),
+            passwordInput: getElement('password-input'),
+            googleLoginBtn: getElement('google-login-btn'),
+            userInfo: getElement('user-info'),
+            promptForm: getElement('prompt-form'),
+            formTitle: getElement('form-title'),
+            promptTitle: getElement('prompt-title'),
+            promptCategorySelect: getElement('prompt-category-select'),
+            promptText: getElement('prompt-text'),
+            promptLink: getElement('prompt-link'),
+            formButtons: getElement('form-buttons'),
+            editButtons: getElement('edit-buttons'),
+            cancelEditBtn: getElement('cancel-edit-btn'),
+            addCategoryForm: getElement('add-category-form'),
+            categoryName: getElement('category-name'),
+            colorPalette: getElement('color-palette'),
+            categoryListManagement: getElement('category-list-management'),
+            kanbanBoard: getElement('kanban-board'),
+            trashView: getElement('trash-view'),
+            trashedPromptList: getElement('trashed-prompt-list'),
+            backToBoardBtn: getElement('back-to-board-btn'),
+            trashViewBtn: getElement('trash-view-btn'),
+            searchInput: getElement('search-input'),
+            mobileSearchInput: getElement('mobile-search-input'),
+            categoryFilters: getElement('category-filters'),
+            sidebar: getElement('sidebar'),
+            sidebarBackdrop: getElement('sidebar-backdrop'),
+            openSidebarBtn: getElement('open-sidebar-btn'),
+            closeSidebarBtn: getElement('close-sidebar-btn'),
+            toast: getElement('toast'),
+        };
 
         function initializeAppCore() {
             try {
@@ -208,7 +242,6 @@
                 db = getFirestore(app); auth = getAuth(app);
                 setupAuthListener();
                 renderColorPalette();
-                if (isTestEnvironment) { elements.testModeBtn.classList.remove('hidden'); }
             } catch (e) { document.body.innerHTML = `<h1>Erro Crítico: ${e.message}</h1>`; }
         }
 
@@ -335,7 +368,7 @@
             return `
             <div class="prompt-card w-56 md:w-64 flex-shrink-0" data-prompt-id="${prompt.id}" data-prompt-text="${escapeHTML(prompt.text)}">
                 <div class="compact-view relative bg-gray-800 p-4 rounded-lg cursor-pointer h-24 flex flex-col justify-between transition-all hover:bg-gray-700">
-                    <button data-action="copy" class="absolute top-2 right-2 text-gray-400 hover:text-white p-2 rounded-md hidden md:flex items-center justify-center" title="Copiar"><i class="fas fa-copy"></i></button>
+                    <button data-action="copy" class="absolute top-2 right-2 text-gray-400 hover:text-white p-2 rounded-md flex items-center justify-center" title="Copiar"><i class="fas fa-copy"></i></button>
                     <h3 class="text-white font-bold truncate pr-8">${escapeHTML(prompt.title)}</h3>
                     <div><span class="bg-gray-700 text-gray-300 text-xs font-semibold px-2 py-0.5 rounded-full">${escapeHTML(category.name)}</span></div>
                 </div>
@@ -446,7 +479,6 @@
                 if (action === 'edit') { enterEditMode(prompt); }
                 return;
             }
-            if (wasLongPress) { wasLongPress = false; return; }
             card.classList.toggle('expanded');
         };
 
@@ -496,7 +528,7 @@
             try { await signInWithEmailAndPassword(auth, email, password); }
             catch (error) { if (error.code === 'auth/user-not-found') { try { await createUserWithEmailAndPassword(auth, email, password); } catch (createError) { showToast(`Erro: ${createError.code}`, true); } } else { showToast(`Erro: ${error.code}`, true); } }
         });
-        elements.testModeBtn.addEventListener('click', async () => { try { await signInAnonymously(auth); } catch (e) { showToast(`Erro: ${e.code}`, true); }});
+        
         elements.promptForm.addEventListener('submit', handleFormSubmit);
         elements.addCategoryForm.addEventListener('submit', handleAddCategory);
         elements.kanbanBoard.addEventListener('click', handleCardClick);
