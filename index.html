@@ -277,7 +277,23 @@
         const restorePrompt = async (id) => await updateDoc(doc(promptsCollectionRef, id), { isTrashed: false });
         const deletePromptPermanently = async (id) => {
              if (confirm("Excluir este prompt permanentemente?")) { await deleteDoc(doc(promptsCollectionRef, id)); }
-        }
+        };
+
+        const deleteCategory = async (categoryId) => {
+            const promptsInCategory = allPrompts.filter(p => p.categoryId === categoryId);
+            if (promptsInCategory.length > 0) {
+                showToast("Mova ou delete os prompts desta categoria primeiro.", true);
+                return;
+            }
+            if (confirm("Tem certeza que deseja excluir esta categoria?")) {
+                try {
+                    await deleteDoc(doc(categoriesCollectionRef, categoryId));
+                    showToast("Categoria excluída.");
+                } catch (error) {
+                    showToast("Erro ao excluir categoria.", true);
+                }
+            }
+        };
 
         const renderUserInfo = () => {
             const photo = userPhotoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(userEmail)}&background=random`;
@@ -365,18 +381,36 @@
             document.querySelectorAll('.category-filter-btn').forEach(btn => {
                 const id = btn.dataset.categoryId;
                 const isSelected = id === 'all' ? selectedCategoryIds.length === 0 : selectedCategoryIds.includes(id);
-                
-                btn.classList.toggle('text-white', isSelected);
-                if (isSelected) {
-                    btn.style.backgroundColor = id === 'all' ? '#4f46e5' : allCategories.find(c => c.id === id)?.color || '';
+
+                if (id === 'all') {
+                    if (isSelected) {
+                        btn.classList.add('bg-indigo-600', 'text-white');
+                        btn.classList.remove('border', 'border-gray-600', 'text-gray-400');
+                    } else {
+                        btn.classList.remove('bg-indigo-600', 'text-white');
+                        btn.classList.add('border', 'border-gray-600', 'text-gray-400');
+                    }
                 } else {
-                     btn.style.backgroundColor = 'transparent';
+                    const category = allCategories.find(c => c.id === id);
+                    if (category) {
+                        if (isSelected) {
+                            btn.style.backgroundColor = category.color;
+                            btn.style.color = 'white';
+                        } else {
+                            btn.style.backgroundColor = 'transparent';
+                            btn.style.color = category.color;
+                        }
+                    }
                 }
             });
         }
 
         function renderCategoryManagementList() {
-            elements.categoryListManagement.innerHTML = allCategories.map(cat => `<div class="bg-gray-700 p-2 rounded-lg text-sm text-center" style="border-left: 4px solid ${cat.color};">${escapeHTML(cat.name)}</div>`).join('');
+            elements.categoryListManagement.innerHTML = allCategories.map(cat => `
+            <div class="flex items-center justify-between bg-gray-700 p-2 rounded-lg text-sm" style="border-left: 4px solid ${cat.color};">
+                <span>${escapeHTML(cat.name)}</span>
+                <button data-action="delete-category" data-id="${cat.id}" class="text-gray-400 hover:text-red-500 px-2" title="Excluir categoria"><i class="fas fa-times"></i></button>
+            </div>`).join('');
         }
         
         function populateCategorySelect() {
@@ -499,6 +533,12 @@
              }
              updateFilterButtonsUI();
              renderKanbanBoard();
+        });
+        elements.categoryListManagement.addEventListener('click', (e) => {
+            const button = e.target.closest('button[data-action="delete-category"]');
+            if (button) {
+                deleteCategory(button.dataset.id);
+            }
         });
         // Sidebar toggle listeners
         elements.openSidebarBtn.addEventListener('click', () => {
